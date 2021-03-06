@@ -1,0 +1,50 @@
+<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta http-equiv=content-language content="en"><meta name=color-scheme content="light dark"><meta name=author content="Andreas Brunner"><meta name=description content="the problem with different npm versions"><meta name=keywords content="blog,developer,personal"><meta name=twitter:card content="summary"><meta name=twitter:title content="put a file on multiple S3 buckets asynchronous"><meta name=twitter:description content="the problem with different npm versions"><meta property="og:title" content="put a file on multiple S3 buckets asynchronous"><meta property="og:description" content="the problem with different npm versions"><meta property="og:type" content="article"><meta property="og:url" content="https://baartch.github.io/posts/0006-asyncs3upload/"><meta property="article:section" content="posts"><meta property="article:published_time" content="2021-03-05T19:23:33+01:00"><meta property="article:modified_time" content="2021-03-05T19:23:33+01:00"><title>put a file on multiple S3 buckets asynchronous · baArt</title><link rel=canonical href=https://baartch.github.io/posts/0006-asyncs3upload/><link rel=preload href="/fonts/forkawesome-webfont.woff2?v=1.1.7" as=font type=font/woff2 integrity="sha256-hEIt6X6xzye8ubyk8/uxjz68cRZHsJxoKS9fQ8idUGQ=" crossorigin><link rel=stylesheet href=/css/coder.min.ec198d25949ddd79a670b1ead43ca88e0bc2c1343266d0df0a9eeb7f3f207777.css integrity="sha256-7BmNJZSd3XmmcLHq1DyojgvCwTQyZtDfCp7rfz8gd3c=" crossorigin=anonymous media=screen><link rel=stylesheet href=/css/coder-dark.min.89c82b6022b96f77aeb521b240daec4f87ea029d84d1c78b8acd0735b91b3c92.css integrity="sha256-icgrYCK5b3eutSGyQNrsT4fqAp2E0ceLis0HNbkbPJI=" crossorigin=anonymous media=screen><link rel=icon type=image/png href=/img/favicon-32x32.png sizes=32x32><link rel=icon type=image/png href=/img/favicon-16x16.png sizes=16x16><link rel=apple-touch-icon href=/images/apple-touch-icon.png><link rel=apple-touch-icon sizes=180x180 href=/images/apple-touch-icon.png><script defer src=https://twemoji.maxcdn.com/v/13.0.1/twemoji.min.js integrity=sha384-5f4X0lBluNY/Ib4VhGx0Pf6iDCF99VGXJIyYy7dDLY5QlEd7Ap0hICSSZA1XYbc4 crossorigin=anonymous></script><meta name=generator content="Hugo 0.81.0"></head><body class=colorscheme-auto onload=twemoji.parse(document.body)><div class=float-container><a id=dark-mode-toggle class=colorscheme-toggle><i class="fa fa-adjust fa-fw" aria-hidden=true></i></a></div><main class=wrapper><nav class=navigation><section class=container><a class=navigation-title href=/>baArt</a>
+<input type=checkbox id=menu-toggle>
+<label class="menu-button float-right" for=menu-toggle><i class="fa fa-bars fa-fw" aria-hidden=true></i></label><ul class=navigation-list><li class=navigation-item><a class=navigation-link href=/posts/>Blog</a></li><li class=navigation-item><a class=navigation-link href=/about/>About</a></li></ul></section></nav><div class=content><section class="container post"><article><header><div class=post-title><h1 class=title><a class=title-link href=https://baartch.github.io/posts/0006-asyncs3upload/>put a file on multiple S3 buckets asynchronous</a></h1></div><div class=post-meta><div class=date><span class=posted-on><i class="fa fa-calendar" aria-hidden=true></i><time datetime=2021-03-05T19:23:33+01:00>March 5, 2021</time></span>
+<span class=reading-time><i class="fa fa-clock-o" aria-hidden=true></i>One-minute read</span></div><div class=categories><i class="fa fa-folder" aria-hidden=true></i><a href=/categories/development/>development</a></div><div class=tags><i class="fa fa-tag" aria-hidden=true></i><a href=/tags/js/>js</a>
+<span class=separator>•</span>
+<a href=/tags/javascript/>JavaScript</a>
+<span class=separator>•</span>
+<a href=/tags/typescript/>TypeScript</a>
+<span class=separator>•</span>
+<a href=/tags/aws/>AWS</a>
+<span class=separator>•</span>
+<a href=/tags/lambda/>Lambda</a>
+<span class=separator>•</span>
+<a href=/tags/s3/>S3</a>
+<span class=separator>•</span>
+<a href=/tags/promise/>Promise</a>
+<span class=separator>•</span>
+<a href=/tags/async/>async</a>
+<span class=separator>•</span>
+<a href=/tags/await/>await</a>
+<span class=separator>•</span>
+<a href=/tags/test/>test</a></div></div></header><div><p>Today I was trying hard to write a Lambda function, that deploys a file on multiple S3 buckets asynchronous. My problem was that the files were only uploaded every other time I ran the Lambda. Of course, this behavior suggests, that there was something wrong the Promises and/or the <code>async/await</code> combinations. Unfortunately, I still don&rsquo;t understand the Promises completely. I once have to dive into it.<br>Finally, my script works. But it is unsatisfactory not understanding completely what&rsquo;s going on. And I&rsquo;m sure, this could be solved more elegant&mldr;</p><p>Alright. So, here is the upload function followed by the handler with the loop (the <code>map</code> function iterates through all <code>event['buckets']</code>).</p><div class=highlight><pre style=color:#e5e5e5;background-color:#000;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-JavaScript data-lang=JavaScript><span style=color:#fff;font-weight:700>async</span> <span style=color:#fff;font-weight:700>function</span> putObjectToS3(bucket, key, body) {
+  <span style=color:#fff;font-weight:700>let</span> params = {
+    Body: body,
+    Key: key,
+    Bucket: bucket
+  };
+  <span style=color:#fff;font-weight:700>await</span> s3.putObject(params).promise().then((v) =&gt; {
+    console.log(<span style=color:#0ff;font-weight:700>&#39;Upload successful: &#39;</span>, bucket);
+  }).<span style=color:#fff;font-weight:700>catch</span>((err) =&gt; {
+    console.log(err);
+  });
+}
+
+
+exports.handler = <span style=color:#fff;font-weight:700>async</span> (event) =&gt; {
+
+  <span style=color:#007f7f>/* get content */</span>
+  <span style=color:#fff;font-weight:700>let</span> content = <span style=color:#fff;font-weight:700>await</span> request(event[<span style=color:#0ff;font-weight:700>&#39;url&#39;</span>]);
+
+  <span style=color:#007f7f>/* put a file for each bucket */</span>
+  <span style=color:#fff;font-weight:700>await</span> <span style=color:#fff;font-weight:700>Promise</span>.all(event[<span style=color:#0ff;font-weight:700>&#39;buckets&#39;</span>].map( <span style=color:#fff;font-weight:700>async</span> (bucket) =&gt; {
+    <span style=color:#fff;font-weight:700>await</span> putObjectToS3(bucket, event[<span style=color:#0ff;font-weight:700>&#39;outputFilename&#39;</span>], content);
+  }));
+};
+</code></pre></div><p>Feel free to improve and let me know about it. Thank you.</p></div><footer></footer></article><script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script><script id=MathJax-script async src=https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js></script><script>MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']],processEscapes:!0,processEnvironments:!0},options:{skipHtmlTags:['script','noscript','style','textarea','pre']}}</script></section></div><footer class=footer><section class=container><p>Be curious. Ask questions. Never stop learning new things. Love life.</p>©
+2021
+Andreas Brunner
+·
+Powered by <a href=https://gohugo.io/>Hugo</a> & <a href=https://github.com/luizdepra/hugo-coder/>Coder</a>.</section></footer></main><script src=/js/dark-mode.min.aee9c8a464eb7b3534c7110f7c5e169e7039e2fd92710e0626d451d6725af137.js integrity="sha256-runIpGTrezU0xxEPfF4WnnA54v2ScQ4GJtRR1nJa8Tc="></script></body></html>
